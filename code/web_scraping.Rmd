@@ -1,0 +1,60 @@
+---
+title: "Web scraping"
+author: "Jae Yeon Kim"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+# Install and load packages
+
+```{r}
+if (!require(pacman)) install.packages("pacman")
+
+pacman::p_load(rvest, jsonlite, zoo, XML, ralger, janitor, tidyverse, here)
+```
+
+# Web scraping
+
+```{r}
+url <- c("https://en.wikipedia.org/wiki/Gun_ownership")
+
+download.file(url, destfile = "scraped_page.html", quiet = TRUE)
+
+target <- read_html("scraped_page.html")
+
+# If you want table output 
+table <- target %>%
+  html_nodes(xpath = "/html/body/div[3]/div[3]/div[5]/div[1]/table[1]") %>%
+  html_table() %>%
+  pluck(1)
+
+write_csv(table, here("outputs", "table.csv"))
+```
+
+```{r}
+options(scipen = 100) # no scientific notation
+
+table %>%
+    janitor::clean_names() %>%
+    pivot_longer(contains("estimate"),
+                 names_to = "type",
+                 values_to = "estimate") %>%
+    mutate(estimate = parse_number(estimate)) %>%
+#    filter(countries_and_territories == "United States of America")
+    group_by(type) %>%
+    slice_max(order_by = estimate, n = 10) %>%
+    ggplot(aes(x = fct_reorder(countries_and_territories, estimate), y = estimate)) +
+        geom_col() +
+        coord_flip() +
+        facet_wrap(~type, scales = "free") +
+        labs(x = "Top 10 countries", 
+             y = "")
+
+ggsave(here("outputs", "top10.png"), width = 10)
+```
